@@ -23,11 +23,52 @@ Some prompts to answer:
 
 - What features does each `Song` use in your system
   - For example: genre, mood, energy, tempo
-- What information does your `UserProfile` store
-- How does your `Recommender` compute a score for each song
-- How do you choose which songs to recommend
+Every Song object will have the following 10 features. The first one being id, the second title, the third artist, the fourth genre (pop, lofi, rock, jazz, ambient, synthwave, and indie pop), the fifth mood (emotion mood tag-happy, chill, intense, relaxed, focused, moody), the sixth energy (intensity/activity level from 0.0 - 1.0), the seventh tempo beats per minute, the eighth valence (musical positivity/happiness), the ninth danceability (suitability for dancing on scale 0.0 - 1.0), and the tenth acousticness (acoustic vs electronic 0.0 - 1.0).
 
+- What information does your `UserProfile` store
+Based off of the AI's analysis of apps like youtube, spotify, and apple music, it suggested that the four most significant and effective features for the recommender are energy, mood, acousticness, and tempo_bmp. 
+
+- How does your `Recommender` compute a score for each song
+The formula derived is:
+  feature_score = 1 - |song_value - user_preference|
+
+This allows the score to stay within 0 and 1, where songs close to the user's preference score near 1.0 and distant songs score near 0.0.
+
+The weighted total score for one song is calculated as follows: 
+total_score = (w_energy   × energy_score)
+            + (w_acousticness × acousticness_score)
+            + (w_tempo    × tempo_score)
+            + (w_valence  × valence_score)
+            + (w_genre    × genre_match)
+            + (w_mood     × mood_match)
+
+
+In addition, each of the songs will have different weights for their features, which copilot recommended as: 
+w_energy        = 0.20
+w_acousticness  = 0.20
+w_tempo         = 0.15
+w_valence       = 0.10
+w_genre         = 0.25   ← highest categorical weight
+w_mood          = 0.10
+                --------
+Total           = 1.00
+
+One important thing to note is that a scoring rule and ranking rule is needed to make a recommender. Scoring will operate on a single song isolation and produce a numeric value encoding what the user wants via preferenecs and weights, and the ranking rule with operate on the entire catalog after scoring, from highest to lowest giving us a recommendation list (avoids randomness).
+
+- How do you choose which songs to recommend
+The intended scoring approach would compare each userProfile field against the matchign Song field. As follows:
+
+Genre match would receieve points if song.genre == user.fav_genre
+
+Mood match would receieve points if song.mood == user.fav_mood
+
+And so on for energy closeness (reference the formula) and acoustic preference. 
+
+Thus, each component contributes a partial score, which are summed into a total score per song. Then, we sort all songs by descending score and return the top k (ex: top three).
+
+Note: this is content-based filtering approach where recommendations are driven entirely by how well a song's attributes are matched with user's stated preferences.
 You can include a simple diagram or bullet list if helpful.
+
 
 ---
 
@@ -134,9 +175,16 @@ Example:
 
 Describe your scoring logic in plain language.
 
-- What features of each song does it consider
-- What information about the user does it use
+Overview: 
+My recommender is a content-based ranker that reads all songs from the csv file, and for each song, it will compute a total score : {0,1} and sort songs
+that score highest first, returning the top k. This k represents every feature contributing to a partial score, signiffying how well this song matches the user on this feature. It also implements a weighting strategy for how important each feature is. 
+
+- What features of each song does it consider & What information about the user does it use
+
+Every user profile will need to be defined by the following characteristics: fav_genre, fav_mood, target_energy, target_acousticness, target_valence, target_tempo_bpm, and target_danceability. 
+
 - How does it turn those into a number
+The first part of this algorithm deals with normalizing fields into the same scale. The formula will calculate the feature score by subtracting 1 - (song value - user preference), which behaves correctly when both values are on the same 0.1 scale. Next, the similarity scores are computed. For each numeric feature, we follow this formula: score = 1 - abs(song norm - user norm). The same follows for acousticness, valence, temp norm, and danceability. From this, we conclude that if a song is close to the usser preference it should score near 1.0 and if its far, it trends towards 0. The next part of the formula will compute categorical matches (genre & mood matches using binary system), and finally we combine everything with weights where the total score is finally calculated (formula listed in How Everything Works Section). 
 
 Try to avoid code in this section, treat it like an explanation to a non programmer.
 
